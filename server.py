@@ -1,0 +1,71 @@
+from fastapi import FastAPI, File, UploadFile, HTTPException, Request
+from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from rembg import remove
+import uuid
+
+
+app = FastAPI()
+
+# Configurar carpeta de templates
+templates = Jinja2Templates(directory="templates")
+
+# Servir archivos estáticos
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+@app.get("/")
+async def index(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+
+@app.get("/subir_img")
+async def subir_img(request: Request):
+    return templates.TemplateResponse("subir_img.html", {"request": request})
+
+
+@app.post("/remove_bg")
+async def remove_bg(image: UploadFile = File(...)):
+    if not image.filename:
+        raise HTTPException(status_code=400, detail="No se seleccionó archivo")
+    
+    # Leer la imagen
+    input_data = await image.read()
+    
+    # Eliminar el fondo
+    output_data = remove(input_data)
+    
+    # Generar ID único y obtener nombre original
+    unique_id = str(uuid.uuid4())[:8]
+    original_name = image.filename.rsplit('.', 1)[0]
+    new_filename = f'{original_name}_rendx_{unique_id}.png'
+    
+    # Retornar la imagen sin fondo
+    return StreamingResponse(
+        iter([output_data]),
+        media_type="image/png",
+        headers={"Content-Disposition": f"attachment; filename={new_filename}"}
+    )
+
+
+@app.exception_handler(404)
+async def not_found_handler(request: Request, exc):
+    return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
+
+
+if __name__ == '__main__':
+    import uvicorn , obip
+    try:
+        print("Opcion 1 : LAN")
+        print("Opcion 2 : Local (solo sirve para la pc)")
+        opcion = int(input("X:"))
+        if opcion == 1:
+            print("Accede a otros dispositivos en : "+ obip.obtener_ip()+":8000")
+            uvicorn.run(app, host="0.0.0.0", port=8000)
+        else:
+            uvicorn.run(app, host="127.0.0.1", port=8000)
+    except ValueError as e:
+        print(f"Error tipo : {e}")
+    
+    
